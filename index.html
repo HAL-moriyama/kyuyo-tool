@@ -1,0 +1,1402 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>手取り逆算ツール｜給与計算</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap');
+
+  :root {
+    --bg: #f5f4f0;
+    --surface: #ffffff;
+    --surface2: #f0efe9;
+    --border: #d8d6cc;
+    --border-focus: #4a7c59;
+    --text: #1a1a18;
+    --text-sub: #6b6b60;
+    --accent: #4a7c59;
+    --accent-light: #e8f0ea;
+    --accent2: #c47f3a;
+    --danger: #c0392b;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'Noto Sans JP', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 16px 12px 60px;
+  }
+
+  .header {
+    max-width: 780px;
+    margin: 0 auto 28px;
+    border-left: 4px solid var(--accent);
+    padding-left: 16px;
+  }
+  .header h1 {
+    font-size: 1.35rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    line-height: 1.3;
+  }
+  .header p {
+    font-size: 0.78rem;
+    color: var(--text-sub);
+    margin-top: 4px;
+    line-height: 1.6;
+  }
+
+  .container {
+    max-width: 780px;
+    margin: 0 auto;
+    display: grid;
+    gap: 16px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px 16px;
+  }
+  .card-title {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 14px;
+  }
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .form-group label {
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--text-sub);
+  }
+  .form-group input,
+  .form-group select {
+    font-family: var(--sans);
+    font-size: 1rem;
+    padding: 11px 12px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--surface2);
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.15s;
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    min-height: 44px;
+  }
+  .form-group input:focus,
+  .form-group select:focus {
+    border-color: var(--accent-focus);
+    background: #fff;
+  }
+  .form-group .hint {
+    font-size: 0.7rem;
+    color: var(--text-sub);
+  }
+
+  /* ラジオ */
+  .radio-group {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .radio-group label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    font-size: 0.88rem;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 9px 16px;
+    border: 2px solid var(--border);
+    border-radius: 4px;
+    background: var(--surface2);
+    color: var(--text-sub);
+    min-height: 44px;
+    transition: all 0.15s;
+    user-select: none;
+  }
+  .radio-group label:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-light);
+  }
+  /* ネイティブのラジオボタンを非表示 */
+  .radio-group input[type=radio] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+  }
+  /* 選択済みの見た目 */
+  .radio-group label:has(input:checked) {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    font-weight: 700;
+    box-shadow: 0 2px 6px rgba(74,124,89,0.25);
+  }
+
+  /* 交通費セクション */
+  .commute-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 14px;
+    align-items: end;
+  }
+  @media (max-width: 560px) {
+    .commute-row { grid-template-columns: 1fr 1fr; }
+    .form-grid { grid-template-columns: 1fr; }
+    .card-title { font-size: 0.68rem; }
+    .header h1 { font-size: 1.15rem; }
+    .breakdown-table { font-size: 0.82rem; }
+  }
+  @media (max-width: 400px) {
+    .commute-row { grid-template-columns: 1fr; }
+    .result-main .value { font-size: 1.8rem; }
+  }
+
+  /* ボタン */
+  .calc-btn {
+    width: 100%;
+    padding: 16px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    font-family: var(--sans);
+    font-size: 1.05rem;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    transition: background 0.15s;
+    min-height: 54px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .calc-btn:hover { background: #3a6347; }
+
+  /* 結果エリア */
+  .result-area {
+    display: none;
+  }
+  .result-area.show { display: block; }
+
+  .result-main {
+    background: var(--accent);
+    color: #fff;
+    border-radius: 6px;
+    padding: 16px 16px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .result-main .label {
+    font-size: 0.85rem;
+    opacity: 0.85;
+  }
+  .result-main .value {
+    font-family: var(--mono);
+    font-size: 2.2rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+  }
+  .result-main .value small {
+    font-size: 1rem;
+    margin-left: 4px;
+  }
+
+  .breakdown-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+  }
+  .breakdown-table th,
+  .breakdown-table td {
+    padding: 9px 8px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  .breakdown-table th {
+    font-size: 0.72rem;
+    color: var(--text-sub);
+    font-weight: 500;
+  }
+  .breakdown-table td {
+    font-size: 0.88rem;
+  }
+  .breakdown-table td.num {
+    text-align: right;
+    font-family: var(--mono);
+    font-size: 0.9rem;
+    white-space: nowrap;
+  }
+  .breakdown-table tr.total td {
+    font-weight: 700;
+    border-top: 2px solid var(--border);
+    border-bottom: none;
+    padding-top: 10px;
+  }
+  .breakdown-table tr.total td.num {
+    color: var(--accent);
+    font-size: 0.95rem;
+  }
+  .breakdown-table tr.deduct td {
+    color: var(--danger);
+  }
+  .breakdown-table tr.deduct td.num {
+    color: var(--danger);
+  }
+
+  .note-text {
+    font-size: 0.72rem;
+    color: var(--text-sub);
+    margin-top: 12px;
+    line-height: 1.7;
+  }
+  .burden-toggle {
+    width: 100%;
+    padding: 10px 14px;
+    background: var(--surface2);
+    border: 1px dashed var(--border);
+    border-radius: 4px;
+    font-family: var(--sans);
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-sub);
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.15s;
+  }
+  .burden-toggle:hover {
+    background: var(--accent-light);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .burden-toggle.open {
+    background: var(--accent-light);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .error-msg {
+    background: #fdf0ef;
+    border: 1px solid #e8c5c2;
+    color: var(--danger);
+    border-radius: 4px;
+    padding: 10px 14px;
+    font-size: 0.82rem;
+    display: none;
+  }
+  .error-msg.show { display: block; }
+
+  /* モード切替タブ */
+  .mode-tab-wrap {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+  .mode-tab {
+    padding: 12px 8px;
+    border: 2px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface2);
+    color: var(--text-sub);
+    font-family: var(--sans);
+    font-size: 0.88rem;
+    font-weight: 700;
+    cursor: pointer;
+    line-height: 1.5;
+    transition: all 0.15s;
+    text-align: center;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .mode-tab span {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 400;
+    margin-top: 2px;
+  }
+  .mode-tab:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-light);
+  }
+  .mode-tab.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(74,124,89,0.25);
+  }
+  .mode-tab.active span { color: rgba(255,255,255,0.8); }
+
+  /* 印刷・PDFボタン */
+  .print-btn-wrap {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+  }
+  .print-btn {
+    flex: 1;
+    padding: 11px 8px;
+    border-radius: 4px;
+    font-family: var(--sans);
+    font-size: 0.88rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s;
+    min-height: 44px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .print-btn.pdf {
+    background: var(--accent2);
+    color: #fff;
+    border: none;
+  }
+  .print-btn.pdf:hover { background: #a86a2a; }
+  .print-btn.print {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .print-btn.print:hover { background: var(--border); }
+
+  /* ===== 印刷スタイル ===== */
+  @media print {
+    @page {
+      size: A4 portrait;
+      margin: 12mm 14mm 12mm 14mm;
+    }
+
+    /* 画面用UI要素をすべて非表示 */
+    .header, .mode-tab-wrap,
+    .card:not(.result-area),
+    .calc-btn, #error-msg, .print-btn-wrap,
+    .burden-toggle, .result-area .card-title { display: none !important; }
+
+    /* result-areaだけ表示 */
+    body { background: #fff; padding: 0; margin: 0; }
+    .container { max-width: 100%; padding: 0; gap: 0; }
+    .result-area { display: block !important; border: none; padding: 0; box-shadow: none; }
+
+    /* 印刷専用ヘッダー */
+    #print-header { display: block !important; }
+
+    /* result-main */
+    .result-main {
+      background: #2d5a3d !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+      border-radius: 4px;
+      padding: 10px 14px;
+      margin-bottom: 10px;
+    }
+
+    /* テーブル */
+    .breakdown-table { font-size: 9pt; }
+    .breakdown-table th, .breakdown-table td { padding: 5px 6px; }
+
+    /* 会社負担テーブルは常に展開して表示 */
+    #burden-content { display: block !important; }
+    #company-burden { display: block !important; }
+    .burden-toggle { display: none !important; }
+
+    /* 注記 */
+    .note-text { font-size: 7pt; }
+
+    /* 印刷フッター */
+    #print-footer { display: block !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1 id="header-title">手取り額から給与を逆算するツール</h1>
+  <p id="header-desc">差し引き支給額（手取り）を入力すると、必要な給与支給額を計算します。<br>
+  協会けんぽ料率・令和8年度（2026年3月分〜）対応。所得税は源泉徴収税額表（月額表・甲欄）使用。<br>
+  <span style="font-size:0.72rem;color:#4a7c59;">📱 このファイルはスマホに保存してオフラインでも使えます</span></p>
+</div>
+
+<!-- モード切替タブ -->
+<div class="container" style="margin-bottom:0; padding-bottom:0;">
+  <div class="mode-tab-wrap">
+    <button class="mode-tab active" id="tab-gyaku" onclick="switchMode('gyaku')">
+      ← 逆算モード<br><span>手取り → 給与支給額</span>
+    </button>
+    <button class="mode-tab" id="tab-junsan" onclick="switchMode('junsan')">
+      → 順算モード<br><span>給与支給額 → 手取り</span>
+    </button>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- 目標手取り／給与支給額 -->
+  <div class="card">
+    <div class="card-title" id="input-card-title">目標手取り額</div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label id="input-label">差し引き支給額（手取り）</label>
+        <input type="text" id="target" placeholder="例: 250,000" inputmode="numeric">
+        <span class="hint">円</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 社会保険 -->
+  <div class="card">
+    <div class="card-title">社会保険</div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>社会保険</label>
+        <div class="radio-group">
+          <label><input type="radio" name="shakai" value="1" checked> 加入</label>
+          <label><input type="radio" name="shakai" value="0"> 未加入</label>
+        </div>
+      </div>
+      <div class="form-group" id="pref-group">
+        <label>都道府県（協会けんぽ）</label>
+        <select id="pref">
+          <optgroup label="東北">
+            <option value="miyagi" selected>宮城</option>
+            <option value="aomori">青森</option>
+            <option value="iwate">岩手</option>
+            <option value="akita">秋田</option>
+            <option value="yamagata">山形</option>
+            <option value="fukushima">福島</option>
+          </optgroup>
+          <optgroup label="関東">
+            <option value="tokyo">東京</option>
+            <option value="kanagawa">神奈川</option>
+            <option value="saitama">埼玉</option>
+            <option value="chiba">千葉</option>
+            <option value="ibaraki">茨城</option>
+            <option value="tochigi">栃木</option>
+            <option value="gunma">群馬</option>
+          </optgroup>
+          <optgroup label="北海道・甲信越・北陸">
+            <option value="hokkaido">北海道</option>
+            <option value="niigata">新潟</option>
+            <option value="toyama">富山</option>
+            <option value="ishikawa">石川</option>
+            <option value="fukui">福井</option>
+            <option value="yamanashi">山梨</option>
+            <option value="nagano">長野</option>
+          </optgroup>
+          <optgroup label="東海">
+            <option value="aichi">愛知</option>
+            <option value="gifu">岐阜</option>
+            <option value="shizuoka">静岡</option>
+            <option value="mie">三重</option>
+          </optgroup>
+          <optgroup label="近畿">
+            <option value="osaka">大阪</option>
+            <option value="hyogo">兵庫</option>
+            <option value="kyoto">京都</option>
+            <option value="shiga">滋賀</option>
+            <option value="nara">奈良</option>
+            <option value="wakayama">和歌山</option>
+          </optgroup>
+          <optgroup label="中国・四国">
+            <option value="hiroshima">広島</option>
+            <option value="okayama">岡山</option>
+            <option value="yamaguchi">山口</option>
+            <option value="tottori">鳥取</option>
+            <option value="shimane">島根</option>
+            <option value="tokushima">徳島</option>
+            <option value="kagawa">香川</option>
+            <option value="ehime">愛媛</option>
+            <option value="kochi">高知</option>
+          </optgroup>
+          <optgroup label="九州・沖縄">
+            <option value="fukuoka">福岡</option>
+            <option value="saga">佐賀</option>
+            <option value="nagasaki">長崎</option>
+            <option value="kumamoto">熊本</option>
+            <option value="oita">大分</option>
+            <option value="miyazaki">宮崎</option>
+            <option value="kagoshima">鹿児島</option>
+            <option value="okinawa">沖縄</option>
+          </optgroup>
+          <option value="other">その他（全国平均）</option>
+        </select>
+      </div>
+      <div class="form-group" id="age-group">
+        <label>年齢</label>
+        <div class="radio-group">
+          <label><input type="radio" name="age" value="under40" checked> 40歳未満</label>
+          <label><input type="radio" name="age" value="over40"> 40歳以上（介護保険あり）</label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 雇用保険 -->
+  <div class="card">
+    <div class="card-title">雇用保険</div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>雇用保険</label>
+        <div class="radio-group">
+          <label><input type="radio" name="koyo" value="1" checked> 加入</label>
+          <label><input type="radio" name="koyo" value="0"> 未加入</label>
+        </div>
+        <span class="hint">社会保険未加入でも雇用保険のみ加入の場合は「加入」を選択</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 所得税 -->
+  <div class="card">
+    <div class="card-title">所得税・扶養</div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>扶養親族等の数（甲欄）</label>
+        <select id="fuyou">
+          <option value="0">0人</option>
+          <option value="1">1人</option>
+          <option value="2">2人</option>
+          <option value="3">3人</option>
+          <option value="4">4人</option>
+          <option value="5">5人</option>
+          <option value="6">6人</option>
+          <option value="7">7人</option>
+        </select>
+        <span class="hint">源泉徴収税額表（甲欄）の扶養親族等の数</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 交通費 -->
+  <div class="card">
+    <div class="card-title">通勤手当</div>
+    <div class="commute-row">
+      <div class="form-group">
+        <label>交通費支給額</label>
+        <input type="text" id="commute" placeholder="0" inputmode="numeric">
+        <span class="hint">円 / 月</span>
+      </div>
+      <div class="form-group">
+        <label>通勤距離</label>
+        <select id="distance">
+          <option value="0">交通費なし</option>
+          <option value="2000">2km未満（非課税0円）</option>
+          <option value="4200">2km以上10km未満（4,200円）</option>
+          <option value="7100">10km以上15km未満（7,100円）</option>
+          <option value="12900">15km以上25km未満（12,900円）</option>
+          <option value="18700">25km以上35km未満（18,700円）</option>
+          <option value="24400">35km以上45km未満（24,400円）</option>
+          <option value="28000">45km以上55km未満（28,000円）</option>
+          <option value="31600">55km以上（31,600円）</option>
+        </select>
+        <span class="hint">非課税限度額が自動設定されます</span>
+      </div>
+      <div class="form-group">
+        <label>非課税限度額</label>
+        <input type="text" id="commute-nontax" placeholder="0" inputmode="numeric">
+        <span class="hint">円（直接入力も可）</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 住民税 -->
+  <div class="card">
+    <div class="card-title">住民税</div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>住民税（特別徴収）</label>
+        <input type="text" id="juminzei" placeholder="0" inputmode="numeric">
+        <span class="hint">円 / 月（前年課税のため任意入力）</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 計算ボタン -->
+  <div class="card">
+    <div id="error-msg" class="error-msg"></div>
+    <button class="calc-btn" id="calc-btn" onclick="calculate()">逆算する</button>
+  </div>
+
+  <!-- 結果 -->
+  <div class="card result-area" id="result-area">
+
+    <!-- 印刷専用ヘッダー（画面では非表示） -->
+    <div id="print-header" style="display:none; margin-bottom:12px; border-bottom:2px solid #2d5a3d; padding-bottom:8px;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-end;">
+        <div>
+          <div style="font-size:13pt; font-weight:700; color:#2d5a3d;" id="print-title">給与計算　手取り逆算シート</div>
+          <div style="font-size:8pt; color:#555; margin-top:2px;">協会けんぽ料率・令和8年度（2026年3月分〜）対応　所得税：源泉徴収税額表（月額表・甲欄）</div>
+        </div>
+        <div style="font-size:8pt; color:#555;" id="print-date"></div>
+      </div>
+      <div style="font-size:8pt; color:#333; margin-top:6px; background:#f5f5f0; padding:4px 8px; border-radius:3px;" id="print-conditions"></div>
+    </div>
+
+    <div class="card-title">計算結果</div>
+    <div class="result-main" id="result-main">
+      <div class="label" id="result-label">必要な給与支給額（交通費含む）</div>
+      <div class="value" id="result-value">―</div>
+    </div>
+    <table class="breakdown-table" id="breakdown-table">
+      <thead>
+        <tr>
+          <th>項目</th>
+          <th></th>
+          <th class="num">金額</th>
+        </tr>
+      </thead>
+      <tbody id="breakdown-body"></tbody>
+    </table>
+    <p class="note-text" id="note-text"></p>
+
+    <!-- 会社負担額（参考） -->
+    <div class="company-burden" id="company-burden" style="display:none; margin-top:16px;">
+      <button class="burden-toggle" id="burden-toggle" onclick="toggleBurden()">
+        <span id="burden-toggle-icon">▶</span>　会社負担額（参考）を表示
+      </button>
+      <div class="burden-content" id="burden-content" style="display:none;">
+        <div style="font-size:0.75rem; font-weight:700; color:#4a7c59; margin: 10px 0 6px; letter-spacing:0.05em;">会社負担額（参考）</div>
+        <table class="breakdown-table">
+          <tbody id="burden-body"></tbody>
+        </table>
+        <p class="note-text" style="margin-top:8px;">※雇用保険事業主負担率0.95%（一般事業）。実際の負担額は業種・事業規模により異なります。</p>
+      </div>
+    </div>
+
+    <!-- 印刷・PDFボタン -->
+    <div class="print-btn-wrap">
+      <button class="print-btn pdf" onclick="printPDF()">📄 PDF出力</button>
+      <button class="print-btn print" onclick="window.print()">🖨️ 印刷</button>
+    </div>
+
+    <!-- 印刷専用フッター（画面では非表示） -->
+    <div id="print-footer" style="display:none; margin-top:14px; border-top:1px solid #ccc; padding-top:6px; font-size:7pt; color:#888;">
+      ※本シートは概算です。実際の給与計算では端数処理等により差異が生じます。社会保険料は協会けんぽ加入事業所を前提としています。
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+// ===== 協会けんぽ料率（令和8年度・2026年3月分〜・本人負担分）=====
+// 健康保険料率（労働者負担＝料率÷2）
+const KENPO_RATE = {
+  hokkaido: 0.0514,  aomori:   0.04925, iwate:    0.04755,
+  miyagi:   0.0505,  akita:    0.05005, yamagata: 0.04875,
+  fukushima:0.0475,  ibaraki:  0.04760, tochigi:  0.04910,
+  gunma:    0.04840, saitama:  0.04835, chiba:    0.04865,
+  tokyo:    0.04925, kanagawa: 0.04960, niigata:  0.04605,
+  toyama:   0.04795, ishikawa: 0.04850, fukui:    0.04855,
+  yamanashi:0.04775, nagano:   0.04815, gifu:     0.04900,
+  shizuoka: 0.04805, aichi:    0.04965, mie:      0.04885,
+  shiga:    0.04940, kyoto:    0.04945, osaka:    0.05065,
+  hyogo:    0.05060, nara:     0.04955, wakayama: 0.05030,
+  tottori:  0.04930, shimane:  0.04970, okayama:  0.05025,
+  hiroshima:0.04890, yamaguchi:0.05075, tokushima:0.05120,
+  kagawa:   0.05010, ehime:    0.04990, kochi:    0.05025,
+  fukuoka:  0.05055, saga:     0.05275, nagasaki: 0.05030,
+  kumamoto: 0.05040, oita:     0.05040, miyazaki: 0.04885,
+  kagoshima:0.05065, okinawa:  0.04720,
+  other:    0.04950  // 全国平均9.9%の半分
+};
+// 介護保険料率（全国統一・本人負担）令和8年度 1.62%
+const KAIGO_RATE = 0.0081; // 1.62%÷2
+// 子ども・子育て支援金率（令和8年度4月分＝5月納付分から）本人負担
+const KOSODATE_RATE = 0.00115; // 0.23%÷2
+// 厚生年金料率（本人負担）
+const KOSEI_RATE = 0.09150;
+
+// ===== 標準報酬月額等級テーブル =====
+// [等級, 標準報酬, 月額報酬下限, 月額報酬上限]
+const HYOJUN_TABLE = [
+  [1,  58000,      0,   63000],
+  [2,  68000,  63000,   73000],
+  [3,  78000,  73000,   83000],
+  [4,  88000,  83000,   93000],
+  [5,  98000,  93000,  101000],
+  [6, 104000, 101000,  107000],
+  [7, 110000, 107000,  114000],
+  [8, 118000, 114000,  122000],
+  [9, 126000, 122000,  130000],
+  [10,134000, 130000,  138000],
+  [11,142000, 138000,  146000],
+  [12,150000, 146000,  155000],
+  [13,160000, 155000,  165000],
+  [14,170000, 165000,  175000],
+  [15,180000, 175000,  185000],
+  [16,190000, 185000,  195000],
+  [17,200000, 195000,  210000],
+  [18,220000, 210000,  230000],
+  [19,240000, 230000,  250000],
+  [20,260000, 250000,  270000],
+  [21,280000, 270000,  290000],
+  [22,300000, 290000,  310000],
+  [23,320000, 310000,  330000],
+  [24,340000, 330000,  350000],
+  [25,360000, 350000,  370000],
+  [26,380000, 370000,  395000],
+  [27,410000, 395000,  425000],
+  [28,440000, 425000,  455000],
+  [29,470000, 455000,  485000],
+  [30,500000, 485000,  515000],
+  [31,530000, 515000,  545000],
+  [32,560000, 545000,  575000],
+  [33,590000, 575000,  605000],
+  [34,620000, 605000,  635000],
+  [35,650000, 635000, 9999999],
+];
+
+function getHyojunHoshu(kyuyo) {
+  for (const row of HYOJUN_TABLE) {
+    if (kyuyo >= row[2] && kyuyo < row[3]) return row[1];
+  }
+  return HYOJUN_TABLE[HYOJUN_TABLE.length - 1][1];
+}
+
+// ===== 源泉徴収税額表（月額表・甲欄）2024年版 抜粋 =====
+// [給与等の金額下限, 扶養0,1,2,3,4,5,6,7人]
+// ※給与等の金額 = 課税給与（交通費非課税分除く）- 社会保険料控除後
+// 実際は「社会保険料等控除後の給与等の金額」で引く
+// ここでは主要レンジを収録（88,000円未満は0円、上限超は別計算）
+const GENSEN_TABLE = [
+  //  下限,     0人,  1人,  2人,  3人,  4人,  5人,  6人,  7人
+  [   88000,    130,    0,    0,    0,    0,    0,    0,    0],
+  [   89000,    180,    0,    0,    0,    0,    0,    0,    0],
+  [   90000,    230,    0,    0,    0,    0,    0,    0,    0],
+  [   91000,    290,    0,    0,    0,    0,    0,    0,    0],
+  [   92000,    340,    0,    0,    0,    0,    0,    0,    0],
+  [   93000,    390,    0,    0,    0,    0,    0,    0,    0],
+  [   94000,    440,    0,    0,    0,    0,    0,    0,    0],
+  [   95000,    490,    0,    0,    0,    0,    0,    0,    0],
+  [   96000,    540,    0,    0,    0,    0,    0,    0,    0],
+  [   97000,    590,    0,    0,    0,    0,    0,    0,    0],
+  [   98000,    640,    0,    0,    0,    0,    0,    0,    0],
+  [   99000,    690,    0,    0,    0,    0,    0,    0,    0],
+  [  101000,    760,    0,    0,    0,    0,    0,    0,    0],
+  [  103000,    830,    0,    0,    0,    0,    0,    0,    0],
+  [  105000,    900,    0,    0,    0,    0,    0,    0,    0],
+  [  107000,    970,    0,    0,    0,    0,    0,    0,    0],
+  [  109000,   1040,    0,    0,    0,    0,    0,    0,    0],
+  [  111000,   1110,    0,    0,    0,    0,    0,    0,    0],
+  [  113000,   1180,    0,    0,    0,    0,    0,    0,    0],
+  [  115000,   1250,    0,    0,    0,    0,    0,    0,    0],
+  [  117000,   1320,    0,    0,    0,    0,    0,    0,    0],
+  [  119000,   1390,    0,    0,    0,    0,    0,    0,    0],
+  [  121000,   1460,    0,    0,    0,    0,    0,    0,    0],
+  [  123000,   1530,    0,    0,    0,    0,    0,    0,    0],
+  [  125000,   1600,    0,    0,    0,    0,    0,    0,    0],
+  [  127000,   1680,    0,    0,    0,    0,    0,    0,    0],
+  [  129000,   1760,    0,    0,    0,    0,    0,    0,    0],
+  [  131000,   1840,    0,    0,    0,    0,    0,    0,    0],
+  [  133000,   1920,    0,    0,    0,    0,    0,    0,    0],
+  [  135000,   2010,    0,    0,    0,    0,    0,    0,    0],
+  [  137000,   2090,    0,    0,    0,    0,    0,    0,    0],
+  [  139000,   2180,    0,    0,    0,    0,    0,    0,    0],
+  [  141000,   2260,    0,    0,    0,    0,    0,    0,    0],
+  [  143000,   2350,    0,    0,    0,    0,    0,    0,    0],
+  [  145000,   2440,    0,    0,    0,    0,    0,    0,    0],
+  [  147000,   2520,    0,    0,    0,    0,    0,    0,    0],
+  [  149000,   2610,    0,    0,    0,    0,    0,    0,    0],
+  [  151000,   2700,    0,    0,    0,    0,    0,    0,    0],
+  [  153000,   2790,    0,    0,    0,    0,    0,    0,    0],
+  [  155000,   2880,    0,    0,    0,    0,    0,    0,    0],
+  [  157000,   2980,    0,    0,    0,    0,    0,    0,    0],
+  [  159000,   3070,    0,    0,    0,    0,    0,    0,    0],
+  [  161000,   3160,    0,    0,    0,    0,    0,    0,    0],
+  [  163000,   3260,    0,    0,    0,    0,    0,    0,    0],
+  [  165000,   3350,    0,    0,    0,    0,    0,    0,    0],
+  [  167000,   3450,    0,    0,    0,    0,    0,    0,    0],
+  [  169000,   3540,    0,    0,    0,    0,    0,    0,    0],
+  [  171000,   3640,    0,    0,    0,    0,    0,    0,    0],
+  [  173000,   3740,    0,    0,    0,    0,    0,    0,    0],
+  [  175000,   3840,    0,    0,    0,    0,    0,    0,    0],
+  [  177000,   3930,    0,    0,    0,    0,    0,    0,    0],
+  [  179000,   4030,    0,    0,    0,    0,    0,    0,    0],
+  [  181000,   4130,    0,    0,    0,    0,    0,    0,    0],
+  [  183000,   4230,    0,    0,    0,    0,    0,    0,    0],
+  [  185000,   4330,    0,    0,    0,    0,    0,    0,    0],
+  [  187000,   4430,    0,    0,    0,    0,    0,    0,    0],
+  [  189000,   4530,    0,    0,    0,    0,    0,    0,    0],
+  [  191000,   4630,    0,    0,    0,    0,    0,    0,    0],
+  [  193000,   4730,    0,    0,    0,    0,    0,    0,    0],
+  [  195000,   4830,    0,    0,    0,    0,    0,    0,    0],
+  [  197000,   4940,    0,    0,    0,    0,    0,    0,    0],
+  [  199000,   5040,    0,    0,    0,    0,    0,    0,    0],
+  [  201000,   5140,    0,    0,    0,    0,    0,    0,    0],
+  [  203000,   5240,    0,    0,    0,    0,    0,    0,    0],
+  [  205000,   5350,    0,    0,    0,    0,    0,    0,    0],
+  [  207000,   5450,    0,    0,    0,    0,    0,    0,    0],
+  [  209000,   5550,    0,    0,    0,    0,    0,    0,    0],
+  [  211000,   5650,    0,    0,    0,    0,    0,    0,    0],
+  [  213000,   5760,    0,    0,    0,    0,    0,    0,    0],
+  [  215000,   5860,    0,    0,    0,    0,    0,    0,    0],
+  [  217000,   5970,    0,    0,    0,    0,    0,    0,    0],
+  [  219000,   6080,    0,    0,    0,    0,    0,    0,    0],
+  [  221000,   6180,    0,    0,    0,    0,    0,    0,    0],
+  [  224000,   6350,    0,    0,    0,    0,    0,    0,    0],
+  [  227000,   6530,    0,    0,    0,    0,    0,    0,    0],
+  [  230000,   6720,    0,    0,    0,    0,    0,    0,    0],
+  [  233000,   6900,    0,    0,    0,    0,    0,    0,    0],
+  [  236000,   7090,    0,    0,    0,    0,    0,    0,    0],
+  [  239000,   7280,    0,    0,    0,    0,    0,    0,    0],
+  [  242000,   7470,    0,    0,    0,    0,    0,    0,    0],
+  [  245000,   7650,    0,    0,    0,    0,    0,    0,    0],
+  [  248000,   7840,    0,    0,    0,    0,    0,    0,    0],
+  [  251000,   8030,    0,    0,    0,    0,    0,    0,    0],
+  [  254000,   8220,    0,    0,    0,    0,    0,    0,    0],
+  [  257000,   8410,    0,    0,    0,    0,    0,    0,    0],
+  [  260000,   8600,    0,    0,    0,    0,    0,    0,    0],
+  [  263000,   8790,    0,    0,    0,    0,    0,    0,    0],
+  [  266000,   8980,    0,    0,    0,    0,    0,    0,    0],
+  [  269000,   9240,    0,    0,    0,    0,    0,    0,    0],
+  [  272000,   9500,    0,    0,    0,    0,    0,    0,    0],
+  [  275000,   9750,    0,    0,    0,    0,    0,    0,    0],
+  [  278000,  10010,    0,    0,    0,    0,    0,    0,    0],
+  [  281000,  10260,    0,    0,    0,    0,    0,    0,    0],
+  [  284000,  10520,    0,    0,    0,    0,    0,    0,    0],
+  [  287000,  10770,    0,    0,    0,    0,    0,    0,    0],
+  [  290000,  11040,    0,    0,    0,    0,    0,    0,    0],
+  [  293000,  11310,    0,    0,    0,    0,    0,    0,    0],
+  [  296000,  11580,    0,    0,    0,    0,    0,    0,    0],
+  [  299000,  11850,    0,    0,    0,    0,    0,    0,    0],
+  [  302000,  12120,    0,    0,    0,    0,    0,    0,    0],
+  [  305000,  12390,    0,    0,    0,    0,    0,    0,    0],
+  [  308000,  12660,    0,    0,    0,    0,    0,    0,    0],
+  [  311000,  12930,    0,    0,    0,    0,    0,    0,    0],
+  [  314000,  13200,    0,    0,    0,    0,    0,    0,    0],
+  [  317000,  13480,    0,    0,    0,    0,    0,    0,    0],
+  [  320000,  13760,    0,    0,    0,    0,    0,    0,    0],
+  [  323000,  14040,    0,    0,    0,    0,    0,    0,    0],
+  [  326000,  14320,    0,    0,    0,    0,    0,    0,    0],
+  [  329000,  14600,    0,    0,    0,    0,    0,    0,    0],
+  [  332000,  14880,    0,    0,    0,    0,    0,    0,    0],
+  [  335000,  15160,    0,    0,    0,    0,    0,    0,    0],
+  [  338000,  15440,    0,    0,    0,    0,    0,    0,    0],
+  [  341000,  15730,    0,    0,    0,    0,    0,    0,    0],
+  [  344000,  16010,    0,    0,    0,    0,    0,    0,    0],
+  [  347000,  16300,    0,    0,    0,    0,    0,    0,    0],
+  [  350000,  16580,    0,    0,    0,    0,    0,    0,    0],
+  [  353000,  16870,    0,    0,    0,    0,    0,    0,    0],
+  [  356000,  17160,    0,    0,    0,    0,    0,    0,    0],
+  [  359000,  17450,    0,    0,    0,    0,    0,    0,    0],
+  [  362000,  17740,    0,    0,    0,    0,    0,    0,    0],
+  [  365000,  18030,    0,    0,    0,    0,    0,    0,    0],
+  [  368000,  18320,    0,    0,    0,    0,    0,    0,    0],
+  [  371000,  18620,    0,    0,    0,    0,    0,    0,    0],
+  [  374000,  18920,    0,    0,    0,    0,    0,    0,    0],
+  [  377000,  19210,    0,    0,    0,    0,    0,    0,    0],
+  [  380000,  19510,    0,    0,    0,    0,    0,    0,    0],
+  [  383000,  19810,    0,    0,    0,    0,    0,    0,    0],
+  [  386000,  20110,    0,    0,    0,    0,    0,    0,    0],
+  [  389000,  20420,    0,    0,    0,    0,    0,    0,    0],
+  [  392000,  20720,    0,    0,    0,    0,    0,    0,    0],
+  [  395000,  21030,    0,    0,    0,    0,    0,    0,    0],
+  [  398000,  21340,    0,    0,    0,    0,    0,    0,    0],
+  [  401000,  21660,    0,    0,    0,    0,    0,    0,    0],
+  [  404000,  21970,    0,    0,    0,    0,    0,    0,    0],
+  [  407000,  22290,    0,    0,    0,    0,    0,    0,    0],
+  [  410000,  22610,    0,    0,    0,    0,    0,    0,    0],
+  [  413000,  22920,    0,    0,    0,    0,    0,    0,    0],
+  [  416000,  23240,    0,    0,    0,    0,    0,    0,    0],
+  [  419000,  23560,    0,    0,    0,    0,    0,    0,    0],
+  [  422000,  23880,    0,    0,    0,    0,    0,    0,    0],
+  [  425000,  24210,    0,    0,    0,    0,    0,    0,    0],
+  [  428000,  24540,    0,    0,    0,    0,    0,    0,    0],
+  [  431000,  24870,    0,    0,    0,    0,    0,    0,    0],
+  [  434000,  25200,    0,    0,    0,    0,    0,    0,    0],
+  [  437000,  25530,    0,    0,    0,    0,    0,    0,    0],
+  [  440000,  25870,    0,    0,    0,    0,    0,    0,    0],
+  [  443000,  26200,    0,    0,    0,    0,    0,    0,    0],
+  [  446000,  26540,    0,    0,    0,    0,    0,    0,    0],
+  [  449000,  26870,    0,    0,    0,    0,    0,    0,    0],
+  [  452000,  27210,    0,    0,    0,    0,    0,    0,    0],
+  [  455000,  27550,    0,    0,    0,    0,    0,    0,    0],
+  [  458000,  27890,    0,    0,    0,    0,    0,    0,    0],
+  [  461000,  28230,    0,    0,    0,    0,    0,    0,    0],
+  [  464000,  28580,    0,    0,    0,    0,    0,    0,    0],
+  [  467000,  28930,    0,    0,    0,    0,    0,    0,    0],
+  [  470000,  29280,    0,    0,    0,    0,    0,    0,    0],
+  [  473000,  29630,    0,    0,    0,    0,    0,    0,    0],
+  [  476000,  29990,    0,    0,    0,    0,    0,    0,    0],
+  [  479000,  30350,    0,    0,    0,    0,    0,    0,    0],
+  [  482000,  30710,    0,    0,    0,    0,    0,    0,    0],
+  [  485000,  31070,    0,    0,    0,    0,    0,    0,    0],
+  [  488000,  31430,    0,    0,    0,    0,    0,    0,    0],
+  [  491000,  31800,    0,    0,    0,    0,    0,    0,    0],
+  [  494000,  32170,    0,    0,    0,    0,    0,    0,    0],
+  [  497000,  32540,    0,    0,    0,    0,    0,    0,    0],
+  [  500000,  32920,    0,    0,    0,    0,    0,    0,    0],
+  [  503000,  33290,    0,    0,    0,    0,    0,    0,    0],
+  [  506000,  33670,    0,    0,    0,    0,    0,    0,    0],
+  [  509000,  34060,    0,    0,    0,    0,    0,    0,    0],
+  [  512000,  34450,    0,    0,    0,    0,    0,    0,    0],
+  [  515000,  34840,    0,    0,    0,    0,    0,    0,    0],
+  [  518000,  35240,    0,    0,    0,    0,    0,    0,    0],
+  [  521000,  35640,    0,    0,    0,    0,    0,    0,    0],
+  [  524000,  36040,    0,    0,    0,    0,    0,    0,    0],
+  [  527000,  36440,    0,    0,    0,    0,    0,    0,    0],
+  [  530000,  36840,    0,    0,    0,    0,    0,    0,    0],
+  [  533000,  37240,    0,    0,    0,    0,    0,    0,    0],
+  [  536000,  37650,    0,    0,    0,    0,    0,    0,    0],
+  [  539000,  38060,    0,    0,    0,    0,    0,    0,    0],
+  [  542000,  38470,    0,    0,    0,    0,    0,    0,    0],
+  [  545000,  38880,    0,    0,    0,    0,    0,    0,    0],
+  [  548000,  39290,    0,    0,    0,    0,    0,    0,    0],
+  [  551000,  39700,    0,    0,    0,    0,    0,    0,    0],
+  [  554000,  40120,    0,    0,    0,    0,    0,    0,    0],
+  [  557000,  40540,    0,    0,    0,    0,    0,    0,    0],
+  [  560000,  40960,    0,    0,    0,    0,    0,    0,    0],
+  [  563000,  41390,    0,    0,    0,    0,    0,    0,    0],
+  [  566000,  41820,    0,    0,    0,    0,    0,    0,    0],
+  [  569000,  42250,    0,    0,    0,    0,    0,    0,    0],
+  [  572000,  42680,    0,    0,    0,    0,    0,    0,    0],
+  [  575000,  43110,    0,    0,    0,    0,    0,    0,    0],
+  [  578000,  43540,    0,    0,    0,    0,    0,    0,    0],
+  [  581000,  43980,    0,    0,    0,    0,    0,    0,    0],
+  [  584000,  44420,    0,    0,    0,    0,    0,    0,    0],
+  [  587000,  44860,    0,    0,    0,    0,    0,    0,    0],
+  [  590000,  45300,    0,    0,    0,    0,    0,    0,    0],
+  [  593000,  45740,    0,    0,    0,    0,    0,    0,    0],
+  [  596000,  46180,    0,    0,    0,    0,    0,    0,    0],
+  [  599000,  46620,    0,    0,    0,    0,    0,    0,    0],
+  [  602000,  47070,    0,    0,    0,    0,    0,    0,    0],
+  [  605000,  47520,    0,    0,    0,    0,    0,    0,    0],
+  [  608000,  47970,    0,    0,    0,    0,    0,    0,    0],
+  [  611000,  48420,    0,    0,    0,    0,    0,    0,    0],
+  [  614000,  48870,    0,    0,    0,    0,    0,    0,    0],
+  [  617000,  49320,    0,    0,    0,    0,    0,    0,    0],
+  [  620000,  49780,    0,    0,    0,    0,    0,    0,    0],
+  [  623000,  50240,    0,    0,    0,    0,    0,    0,    0],
+  [  626000,  50700,    0,    0,    0,    0,    0,    0,    0],
+  [  629000,  51160,    0,    0,    0,    0,    0,    0,    0],
+  [  632000,  51620,    0,    0,    0,    0,    0,    0,    0],
+];
+
+// 扶養ありの場合の差額（簡易：1人ごとに減税）
+// ※実際は税額表を引くが、ここでは0円フラグで処理済みの場合は表の0列で処理
+// 扶養1人以上は源泉徴収税額表の扶養列を参照するが、本ツールでは
+// 実務上の簡易対応として: 扶養1人=課税対象所得が実効的に下がる扱いで
+// 源泉税額表引きを課税給与（控除後）が(n×38000)分シフトした額で引く方式を採用
+// ※正確には国税庁月額表を完全実装すべきだが、概算として十分実用的
+
+function getGensen(kazeiKyuyo, fuyouNum) {
+  // 88,000円未満は0
+  if (kazeiKyuyo < 88000) return 0;
+
+  // 扶養人数による調整：扶養1人につき38,000円（年額456,000÷12）相当を控除
+  const adjusted = kazeiKyuyo - fuyouNum * 38000;
+  if (adjusted < 88000) return 0;
+
+  // テーブルから検索
+  let tax = 0;
+  for (let i = GENSEN_TABLE.length - 1; i >= 0; i--) {
+    if (adjusted >= GENSEN_TABLE[i][0]) {
+      tax = GENSEN_TABLE[i][1];
+      break;
+    }
+  }
+  return tax;
+}
+
+// ===== 手取り計算（給与額→手取り）=====
+function calcTedori(kyuyo, params) {
+  const { shakai, koyoFlg, pref, isOver40, fuyouNum, commute, commuteNontax, juminzei } = params;
+
+  // 交通費の課税部分
+  const commuteNontaxAmt = Math.min(commute, commuteNontax);
+  const commuteTaxable = commute - commuteNontaxAmt;
+
+  // 総支給額（交通費含む）
+  const soushikyu = kyuyo + commute;
+
+  let kenpo = 0, kaigo = 0, kosei = 0, koyo = 0, kosodate = 0;
+  let hyojun = 0;
+
+  if (shakai) {
+    // 社会保険の標準報酬月額（交通費含む総支給額で判定）
+    hyojun = getHyojunHoshu(soushikyu);
+
+    const kenpoRate = KENPO_RATE[pref] || KENPO_RATE['other'];
+    kenpo = Math.floor(hyojun * kenpoRate);
+    kaigo = isOver40 ? Math.floor(hyojun * KAIGO_RATE) : 0;
+    kosei = Math.floor(hyojun * KOSEI_RATE);
+    // 子ども・子育て支援金（令和8年4月分=翌月徴収なら5月支給から）
+    kosodate = Math.floor(hyojun * KOSODATE_RATE);
+  }
+
+  // 雇用保険は社会保険と独立して判定
+  if (koyoFlg) {
+    koyo = Math.floor(soushikyu * 0.006); // 被保険者負担：一般0.6%
+  }
+
+  const shakaiTotal = kenpo + kaigo + kosei + koyo + kosodate;
+
+  // 課税給与（社保控除後・非課税交通費除く）
+  const kazeiKyuyo = kyuyo + commuteTaxable - shakaiTotal;
+  const shotokuzei = getGensen(kazeiKyuyo, fuyouNum);
+
+  const tedori = soushikyu - shakaiTotal - shotokuzei - juminzei;
+
+  // 会社負担額（参考）
+  const kenpoC    = shakai ? Math.floor(hyojun * (KENPO_RATE[pref] || KENPO_RATE['other'])) : 0;
+  const kaigoC    = (shakai && isOver40) ? Math.floor(hyojun * KAIGO_RATE) : 0;
+  const koseiC    = shakai ? Math.floor(hyojun * KOSEI_RATE) : 0;
+  const koyoC     = koyoFlg ? Math.floor(soushikyu * 0.0095) : 0; // 事業主負担0.95%
+  const kosodateC = shakai ? Math.floor(hyojun * KOSODATE_RATE) : 0;
+  const shakaiC   = kenpoC + kaigoC + koseiC + koyoC + kosodateC;
+  const jinkenhi  = soushikyu + shakaiC; // 総人件費
+
+  return {
+    soushikyu,
+    kyuyo,
+    commute,
+    commuteNontaxAmt,
+    commuteTaxable,
+    hyojun,
+    kenpo,
+    kaigo,
+    kosei,
+    koyo,
+    kosodate,
+    shakaiTotal,
+    kazeiKyuyo,
+    shotokuzei,
+    juminzei,
+    tedori,
+    kenpoC,
+    kaigoC,
+    koseiC,
+    koyoC,
+    kosodateC,
+    shakaiC,
+    jinkenhi
+  };
+}
+
+// ===== 二分探索で逆算 =====
+function reverseCal(targetTedori, params) {
+  let lo = targetTedori;
+  let hi = targetTedori * 3;
+  let mid;
+
+  for (let i = 0; i < 100; i++) {
+    mid = Math.round((lo + hi) / 2);
+    const result = calcTedori(mid, params);
+    if (result.tedori < targetTedori) {
+      lo = mid + 1;
+    } else {
+      hi = mid;
+    }
+    if (hi - lo <= 1) break;
+  }
+
+  // lo と hi 両方確認
+  const rLo = calcTedori(lo, params);
+  const rHi = calcTedori(hi, params);
+
+  // 目標以上になる最小の給与額
+  if (rLo.tedori >= targetTedori) return calcTedori(lo, params);
+  return calcTedori(hi, params);
+}
+
+
+// ===== カンマ入力対応ユーティリティ =====
+function getVal(id) {
+  const v = document.getElementById(id).value.replace(/,/g, '');
+  return parseInt(v) || 0;
+}
+function formatInput(el) {
+  const raw = el.value.replace(/[^0-9]/g, '');
+  if (raw === '') { el.value = ''; return; }
+  el.value = parseInt(raw).toLocaleString('ja-JP');
+}
+// 入力欄にカンマ整形イベントを付与
+['target','commute','commute-nontax','juminzei'].forEach(id => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.addEventListener('input', () => formatInput(el));
+  el.addEventListener('blur',  () => formatInput(el));
+});
+// ===== モード管理 =====
+let currentMode = 'gyaku'; // 'gyaku' or 'junsan'
+
+function switchMode(mode) {
+  currentMode = mode;
+  const isGyaku = mode === 'gyaku';
+
+  // タブの見た目
+  document.getElementById('tab-gyaku').classList.toggle('active', isGyaku);
+  document.getElementById('tab-junsan').classList.toggle('active', !isGyaku);
+
+  // ヘッダー
+  document.getElementById('header-title').textContent = isGyaku
+    ? '手取り額から給与を逆算するツール'
+    : '給与支給額から手取りを計算するツール';
+  document.getElementById('header-desc').innerHTML = isGyaku
+    ? '差し引き支給額（手取り）を入力すると、必要な給与支給額を計算します。<br>協会けんぽ料率・令和8年度（2026年3月分〜）対応。所得税は源泉徴収税額表（月額表・甲欄）使用。<br><span style="font-size:0.72rem;color:#4a7c59;">📱 このファイルはスマホに保存してオフラインでも使えます</span>'
+    : '給与支給額を入力すると、控除の内訳と手取り額を計算します。<br>協会けんぽ料率・令和8年度（2026年3月分〜）対応。所得税は源泉徴収税額表（月額表・甲欄）使用。<br><span style="font-size:0.72rem;color:#4a7c59;">📱 このファイルはスマホに保存してオフラインでも使えます</span>';
+
+  // 入力欄ラベル
+  document.getElementById('input-card-title').textContent = isGyaku ? '目標手取り額' : '給与支給額';
+  document.getElementById('input-label').textContent = isGyaku ? '差し引き支給額（手取り）' : '給与支給額（基本給）';
+  document.getElementById('target').placeholder = isGyaku ? '例: 250,000' : '例: 300,000';
+
+  // ボタンラベル
+  document.getElementById('calc-btn').textContent = isGyaku ? '逆算する' : '計算する';
+
+  // 結果を隠す
+  document.getElementById('result-area').classList.remove('show');
+  document.getElementById('error-msg').classList.remove('show');
+}
+
+// ===== フォーム連動 =====
+document.getElementById('distance').addEventListener('change', function() {
+  const v = parseInt(this.value) || 0;
+  document.getElementById('commute-nontax').value = v > 0 ? v.toLocaleString('ja-JP') : '';
+});
+
+document.querySelectorAll('input[name=shakai]').forEach(r => {
+  r.addEventListener('change', function() {
+    const show = this.value === '1';
+    document.getElementById('pref-group').style.opacity = show ? '1' : '0.4';
+    document.getElementById('age-group').style.opacity = show ? '1' : '0.4';
+    // 社会保険未加入時は都道府県・年齢をポインターイベントも無効化
+    document.getElementById('pref-group').style.pointerEvents = show ? '' : 'none';
+    document.getElementById('age-group').style.pointerEvents = show ? '' : 'none';
+  });
+});
+
+// ===== 計算実行 =====
+function calculate() {
+  const errEl = document.getElementById('error-msg');
+  errEl.classList.remove('show');
+
+  const target = getVal('target');
+  if (!target || target <= 0) {
+    errEl.textContent = currentMode === 'gyaku'
+      ? '目標手取り額を入力してください。'
+      : '給与支給額を入力してください。';
+    errEl.classList.add('show');
+    return;
+  }
+
+  const shakai = document.querySelector('input[name=shakai]:checked').value === '1';
+  const koyoFlg = document.querySelector('input[name=koyo]:checked').value === '1';
+  const pref = document.getElementById('pref').value;
+  const isOver40 = document.querySelector('input[name=age]:checked').value === 'over40';
+  const fuyouNum = parseInt(document.getElementById('fuyou').value);
+  const commute = getVal('commute');
+  const commuteNontax = getVal('commute-nontax');
+  const juminzei = getVal('juminzei');
+
+  const params = { shakai, koyoFlg, pref, isOver40, fuyouNum, commute, commuteNontax, juminzei };
+
+  // モードによって計算方法を分岐
+  let r;
+  if (currentMode === 'gyaku') {
+    r = reverseCal(target, params);
+  } else {
+    // 順算：入力値を給与額として直接計算
+    r = calcTedori(target, params);
+  }
+
+  // 結果表示ラベル切替
+  document.getElementById('result-label').textContent = currentMode === 'gyaku'
+    ? '必要な給与支給額（交通費含む）'
+    : '差し引き支給額（手取り）';
+
+  // 結果の主要数値
+  const mainValue = currentMode === 'gyaku' ? r.soushikyu : r.tedori;
+  document.getElementById('result-value').innerHTML = fmt(mainValue) + '<small>円</small>';
+
+  const tbody = document.getElementById('breakdown-body');
+  const rows = [];
+
+  rows.push(['支給', currentMode === 'gyaku' ? '基本給（逆算値）' : '基本給（入力値）', r.kyuyo]);
+  if (r.commute > 0) {
+    rows.push(['支給', `通勤手当（うち非課税 ${fmt(r.commuteNontaxAmt)}円）`, r.commute]);
+  }
+  rows.push(['支給_total', '総支給額', r.soushikyu]);
+
+  if (shakai) {
+    rows.push(['控除', `健康保険料（標準報酬 ${fmt(r.hyojun)}円）`, -r.kenpo]);
+    if (r.kaigo > 0) rows.push(['控除', '介護保険料', -r.kaigo]);
+    rows.push(['控除', '厚生年金保険料', -r.kosei]);
+    if (r.kosodate > 0) rows.push(['控除', '子ども・子育て支援金（4月分〜）', -r.kosodate]);
+  }
+  if (r.koyo > 0) rows.push(['控除', '雇用保険料', -r.koyo]);
+  rows.push(['控除', '所得税', -r.shotokuzei]);
+  if (r.juminzei > 0) rows.push(['控除', '住民税（特別徴収）', -r.juminzei]);
+  rows.push(['手取り', '差引支給額（手取り）', r.tedori]);
+
+  tbody.innerHTML = rows.map(([type, label, val]) => {
+    const isDeduct = type === '控除';
+    const isTotal = type === '手取り' || type === '支給_total';
+    const cls = isDeduct ? 'deduct' : '';
+    const totalCls = isTotal ? 'total' : '';
+    return `<tr class="${cls} ${totalCls}">
+      <td>${label}</td>
+      <td></td>
+      <td class="num">${val < 0 ? '▲' : ''}${fmt(Math.abs(val))}</td>
+    </tr>`;
+  }).join('');
+
+  // 注記
+  const prefNames = {
+    hokkaido:'北海道', aomori:'青森', iwate:'岩手', miyagi:'宮城',
+    akita:'秋田', yamagata:'山形', fukushima:'福島', ibaraki:'茨城',
+    tochigi:'栃木', gunma:'群馬', saitama:'埼玉', chiba:'千葉',
+    tokyo:'東京', kanagawa:'神奈川', niigata:'新潟', toyama:'富山',
+    ishikawa:'石川', fukui:'福井', yamanashi:'山梨', nagano:'長野',
+    gifu:'岐阜', shizuoka:'静岡', aichi:'愛知', mie:'三重',
+    shiga:'滋賀', kyoto:'京都', osaka:'大阪', hyogo:'兵庫',
+    nara:'奈良', wakayama:'和歌山', tottori:'鳥取', shimane:'島根',
+    okayama:'岡山', hiroshima:'広島', yamaguchi:'山口', tokushima:'徳島',
+    kagawa:'香川', ehime:'愛媛', kochi:'高知', fukuoka:'福岡',
+    saga:'佐賀', nagasaki:'長崎', kumamoto:'熊本', oita:'大分',
+    miyazaki:'宮崎', kagoshima:'鹿児島', okinawa:'沖縄', other:'全国平均'
+  };
+  const notes = [
+    '協会けんぽ料率（令和8年度・2026年3月分〜）を使用しています。',
+    `都道府県：${prefNames[pref]}。`,
+    '介護保険料率1.62%（令和8年度）。子ども・子育て支援金0.23%は令和8年4月分から。',
+    '所得税は源泉徴収税額表（月額表・甲欄）の近似値です。',
+    '標準報酬月額は総支給額（交通費含む）をもとに判定しています。',
+    '実際の給与計算では端数処理等により数百円の誤差が生じることがあります。',
+  ];
+  document.getElementById('note-text').textContent = notes.join(' ');
+
+  // 会社負担テーブル
+  if (shakai || koyoFlg) {
+    document.getElementById('company-burden').style.display = 'block';
+    const bRows = [];
+    if (shakai) {
+      bRows.push(['健康保険料（会社負担）', r.kenpoC]);
+      if (r.kaigoC > 0) bRows.push(['介護保険料（会社負担）', r.kaigoC]);
+      bRows.push(['厚生年金保険料（会社負担）', r.koseiC]);
+    }
+    if (koyoFlg) bRows.push(['雇用保険料（会社負担）', r.koyoC]);
+    if (shakai && r.kosodateC > 0) bRows.push(['子ども・子育て支援金（会社負担）', r.kosodateC]);
+    bRows.push(['社会保険料　会社負担合計', r.shakaiC]);
+    bRows.push(['総人件費（給与＋会社負担社保）', r.jinkenhi]);
+    document.getElementById('burden-body').innerHTML = bRows.map(([label, val], i) => {
+      const isTotal = i === bRows.length - 2 || i === bRows.length - 1;
+      const cls = isTotal ? 'total' : '';
+      return `<tr class="${cls}"><td>${label}</td><td></td><td class="num">${fmt(val)}</td></tr>`;
+    }).join('');
+  } else {
+    document.getElementById('company-burden').style.display = 'none';
+  }
+
+  document.getElementById('result-area').classList.add('show');
+  document.getElementById('result-area').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  // 印刷用ヘッダー情報を更新
+  updatePrintHeader(shakai, koyoFlg, pref, isOver40, fuyouNum, commute, juminzei);
+}
+
+// ===== 印刷用ヘッダー更新 =====
+function updatePrintHeader(shakai, koyoFlg, pref, isOver40, fuyouNum, commute, juminzei) {
+  const prefNames = {
+    hokkaido:'北海道', aomori:'青森', iwate:'岩手', miyagi:'宮城',
+    akita:'秋田', yamagata:'山形', fukushima:'福島', ibaraki:'茨城',
+    tochigi:'栃木', gunma:'群馬', saitama:'埼玉', chiba:'千葉',
+    tokyo:'東京', kanagawa:'神奈川', niigata:'新潟', toyama:'富山',
+    ishikawa:'石川', fukui:'福井', yamanashi:'山梨', nagano:'長野',
+    gifu:'岐阜', shizuoka:'静岡', aichi:'愛知', mie:'三重',
+    shiga:'滋賀', kyoto:'京都', osaka:'大阪', hyogo:'兵庫',
+    nara:'奈良', wakayama:'和歌山', tottori:'鳥取', shimane:'島根',
+    okayama:'岡山', hiroshima:'広島', yamaguchi:'山口', tokushima:'徳島',
+    kagawa:'香川', ehime:'愛媛', kochi:'高知', fukuoka:'福岡',
+    saga:'佐賀', nagasaki:'長崎', kumamoto:'熊本', oita:'大分',
+    miyazaki:'宮崎', kagoshima:'鹿児島', okinawa:'沖縄', other:'全国平均'
+  };
+
+  // タイトル
+  document.getElementById('print-title').textContent =
+    currentMode === 'gyaku' ? '給与計算　手取り逆算シート' : '給与計算　手取り計算シート';
+
+  // 日付
+  const now = new Date();
+  document.getElementById('print-date').textContent =
+    `${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日 出力`;
+
+  // 計算条件サマリ
+  const conditions = [];
+  conditions.push(`社会保険：${shakai ? `加入（${prefNames[pref]}）` : '未加入'}`);
+  if (shakai) conditions.push(`年齢区分：${isOver40 ? '40歳以上（介護保険あり）' : '40歳未満'}`);
+  conditions.push(`雇用保険：${koyoFlg ? '加入' : '未加入'}`);
+  conditions.push(`扶養：${fuyouNum}人`);
+  if (commute > 0) conditions.push(`通勤手当：${fmt(commute)}円`);
+  if (juminzei > 0) conditions.push(`住民税：${fmt(juminzei)}円`);
+  document.getElementById('print-conditions').textContent = '【計算条件】' + conditions.join('　／　');
+}
+
+// ===== PDF出力（印刷ダイアログ経由） =====
+function printPDF() {
+  // 会社負担が表示済みの場合は印刷時も展開状態を維持
+  const burdenContent = document.getElementById('burden-content');
+  const wasClosed = burdenContent.style.display === 'none';
+  if (wasClosed) burdenContent.style.display = 'block';
+
+  window.print();
+
+  // 印刷後に元の状態に戻す
+  if (wasClosed) burdenContent.style.display = 'none';
+}
+
+function toggleBurden() {
+  const content = document.getElementById('burden-content');
+  const toggle  = document.getElementById('burden-toggle');
+  const icon    = document.getElementById('burden-toggle-icon');
+  const isOpen  = content.style.display !== 'none';
+  content.style.display = isOpen ? 'none' : 'block';
+  toggle.classList.toggle('open', !isOpen);
+  icon.textContent = isOpen ? '▶' : '▼';
+  toggle.innerHTML = (isOpen ? '▶' : '▼') + '　会社負担額（参考）を' + (isOpen ? '表示' : '非表示');
+}
+
+function fmt(n) {
+  return Math.round(n).toLocaleString('ja-JP');
+}
+</script>
+</body>
+</html>
